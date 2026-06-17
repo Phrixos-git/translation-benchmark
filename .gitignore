@@ -24,6 +24,7 @@ profile.cov
 # Dependency directories (remove the comment below to include it)
 # vendor/
 models/
+__pycache__/
 
 # env file
 .env
