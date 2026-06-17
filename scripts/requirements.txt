@@ -1,0 +1,2 @@
+# No external Python packages are required.
+# The benchmark scripts use only the Python 3.11+ standard library.
