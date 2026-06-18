@@ -969,44 +969,1244 @@ GPUバックエンド
 
 ---
 
-# 24. COMET・chrF++を追加する場合
+# chrF++・COMET 翻訳精度試験 実施手順
 
-3本のプログラムだけでもルールと速度の比較は可能だが、意味的な精度比較にはCOMETまたはchrF++を追加する。
+## 24. 評価対象
 
-処理位置：
+精度評価では、原則として以下を使用する。
 
 ```text
-run_benchmark.py
-       │
-       ├─ evaluate_rules.py
-       │
-       ├─ COMET評価
-       │
-       └─ chrF++評価
-               │
-               ▼
-      aggregate_results.py
+標準翻訳試験：
+results/<model-name>/standard/run_001_raw_results.csv
+
+OCR正常文：
+results/<model-name>/ocr_clean/run_001_raw_results.csv
+
+OCRノイズ文：
+results/<model-name>/ocr_noise/run_001_raw_results.csv
 ```
 
-COMETやchrF++の結果ファイル形式は、`aggregate_results.py`が要求する列構成へ合わせる。
+標準翻訳の精度代表値には`Run 1`を使用する。
+
+`Run 2`と`Run 3`は、主に速度と翻訳結果の安定性確認に使用する。複数Runの精度を比較する場合は、Runごとに別の評価結果として保存する。
+
+---
+
+# 25. 評価前の必須確認
+
+精度評価に使用する`raw_results.csv`について、以下を満たしていることを確認する。
+
+```text
+標準試験：400件
+OCR正常文：40件
+OCRノイズ文：40件
+request_successが全件true
+translation_jaが全件空欄ではない
+同じidが重複していない
+input_variantが試験内容と一致している
+```
+
+API失敗や空出力がある場合、該当項目を除外して評価してはならない。
+
+除外すると、失敗した翻訳がスコアに反映されず、モデルの評価が不当に高くなるためである。
+
+以下のいずれかで対処する。
+
+1. `run_benchmark.py --resume --retry-failed`で再実行する
+2. 該当Runを無効として全体を再実行する
+3. 不完全な結果として記録し、モデル比較には使用しない
+
+---
+
+# 26. 推奨ディレクトリ構成
+
+以下を追加する。
+
+```text
+translation-benchmark/
+├─ evaluation/
+│  ├─ shared/
+│  │  ├─ standard/
+│  │  │  ├─ source.txt
+│  │  │  ├─ reference.txt
+│  │  │  └─ manifest.csv
+│  │  ├─ ocr_clean/
+│  │  │  ├─ source.txt
+│  │  │  ├─ reference.txt
+│  │  │  └─ manifest.csv
+│  │  └─ ocr_noise/
+│  │     ├─ source.txt
+│  │     ├─ reference.txt
+│  │     └─ manifest.csv
+│  ├─ hypotheses/
+│  │  ├─ model-a/
+│  │  │  ├─ standard.txt
+│  │  │  ├─ ocr_clean.txt
+│  │  │  └─ ocr_noise.txt
+│  │  └─ model-b/
+│  │     ├─ standard.txt
+│  │     ├─ ocr_clean.txt
+│  │     └─ ocr_noise.txt
+│  ├─ chrf/
+│  └─ comet/
+├─ results/
+└─ reports/
+```
+
+---
+
+# 27. 評価用ファイルの仕様
+
+chrF++とCOMETでは、1件の翻訳を1行として保存したプレーンテキストファイルを使用する。
+
+## 27.1 source.txt
+
+モデルへ実際に入力した英文。
+
+`raw_results.csv`の以下を使用する。
+
+```text
+input_text
+```
+
+`input_text`がない場合は、試験モードに応じて以下を使用する。
+
+| 試験モード       | 使用列               |
+| ----------- | ----------------- |
+| `standard`  | `source_en`       |
+| `ocr_clean` | `clean_source_en` |
+| `ocr_noise` | `source_en`       |
+
+COMETで使用する。chrF++では使用しない。
+
+---
+
+## 27.2 reference.txt
+
+人間が作成した基準訳。
+
+```text
+reference_ja
+```
+
+chrF++とCOMETの両方で使用する。
+
+---
+
+## 27.3 hypothesis.txt
+
+評価対象モデルが生成した訳文。
+
+```text
+translation_ja
+```
+
+本手順では、モデル名と試験モードが分かる名前にする。
+
+例：
+
+```text
+evaluation/hypotheses/model-a/standard.txt
+evaluation/hypotheses/model-b/standard.txt
+```
+
+---
+
+## 27.4 manifest.csv
+
+各行とテストIDの対応表。
+
+推奨列：
+
+```csv
+line_no,model_name,run_id,id,category,subcategory,difficulty,input_variant
+```
+
+例：
+
+```csv
+line_no,model_name,run_id,id,category,subcategory,difficulty,input_variant
+1,model-a,1,DLG001,会話,挨拶・日常,easy,standard
+2,model-a,1,DLG002,会話,挨拶・日常,easy,standard
+```
+
+COMETの文単位スコアを元のテスト項目へ戻す際に使用する。
+
+---
+
+# 28. ファイル作成時の共通ルール
+
+以下をすべてのファイルで統一する。
+
+```text
+文字コード：UTF-8
+1件につき物理的に1行
+並び順：id昇順
+前後の空白：除去
+セル内改行：半角スペースに置換
+空行：作らない
+```
+
+`source.txt`、`reference.txt`、各モデルの訳文ファイルは、必ず同じ件数、同じ順番にする。
+
+例えば標準試験の場合、次の3ファイルはすべて400行でなければならない。
+
+```text
+source.txt
+reference.txt
+model-a/standard.txt
+```
+
+---
+
+# 29. PowerShellの確認
+
+以下のファイル作成コマンドは、PowerShell 7を推奨する。
+
+確認：
+
+```powershell
+$PSVersionTable.PSVersion
+```
+
+PowerShell 7は、通常以下で起動する。
+
+```powershell
+pwsh
+```
+
+以降のコマンドは、プロジェクトのルートディレクトリで実行する。
+
+---
+
+# 30. 評価用ディレクトリの作成
+
+```powershell
+New-Item -ItemType Directory -Force `
+  -Path .\evaluation\shared\standard | Out-Null
+
+New-Item -ItemType Directory -Force `
+  -Path .\evaluation\shared\ocr_clean | Out-Null
+
+New-Item -ItemType Directory -Force `
+  -Path .\evaluation\shared\ocr_noise | Out-Null
+
+New-Item -ItemType Directory -Force `
+  -Path .\evaluation\hypotheses\model-a | Out-Null
+
+New-Item -ItemType Directory -Force `
+  -Path .\evaluation\hypotheses\model-b | Out-Null
+
+New-Item -ItemType Directory -Force `
+  -Path .\evaluation\chrf | Out-Null
+
+New-Item -ItemType Directory -Force `
+  -Path .\evaluation\comet | Out-Null
+```
+
+---
+
+# 31. Model A標準試験から評価用ファイルを作成
+
+## 31.1 CSVの読み込み
+
+```powershell
+$raw = Import-Csv `
+  .\results\model-a\standard\run_001_raw_results.csv
+
+$rows = $raw |
+  Where-Object {
+    $_.run_id -eq "1" -and
+    $_.input_variant -eq "standard"
+  } |
+  Sort-Object id
+```
+
+---
+
+## 31.2 件数確認
+
+```powershell
+$rows.Count
+```
+
+期待値：
+
+```text
+400
+```
+
+---
+
+## 31.3 失敗・空出力確認
+
+```powershell
+(
+  $rows |
+  Where-Object {
+    $_.request_success -notmatch "^(true|1)$" -or
+    [string]::IsNullOrWhiteSpace($_.translation_ja)
+  }
+).Count
+```
+
+期待値：
+
+```text
+0
+```
+
+0以外の場合は、評価ファイルを作成せず、翻訳試験を修正または再実行する。
+
+---
+
+## 31.4 source.txtの作成
+
+`input_text`が存在する場合：
+
+```powershell
+$rows |
+  ForEach-Object {
+    ($_.input_text -replace "(`r`n|`n|`r)", " ").Trim()
+  } |
+  Set-Content `
+    .\evaluation\shared\standard\source.txt `
+    -Encoding utf8
+```
+
+`input_text`が存在しない場合：
+
+```powershell
+$rows |
+  ForEach-Object {
+    ($_.source_en -replace "(`r`n|`n|`r)", " ").Trim()
+  } |
+  Set-Content `
+    .\evaluation\shared\standard\source.txt `
+    -Encoding utf8
+```
+
+---
+
+## 31.5 reference.txtの作成
+
+```powershell
+$rows |
+  ForEach-Object {
+    ($_.reference_ja -replace "(`r`n|`n|`r)", " ").Trim()
+  } |
+  Set-Content `
+    .\evaluation\shared\standard\reference.txt `
+    -Encoding utf8
+```
+
+---
+
+## 31.6 Model Aの訳文ファイル作成
+
+```powershell
+$rows |
+  ForEach-Object {
+    ($_.translation_ja -replace "(`r`n|`n|`r)", " ").Trim()
+  } |
+  Set-Content `
+    .\evaluation\hypotheses\model-a\standard.txt `
+    -Encoding utf8
+```
+
+---
+
+## 31.7 manifest.csvの作成
+
+```powershell
+$lineNumber = 0
+
+$rows |
+  ForEach-Object {
+    $lineNumber++
+
+    [PSCustomObject]@{
+      line_no      = $lineNumber
+      model_name   = $_.model_name
+      run_id       = $_.run_id
+      id           = $_.id
+      category     = $_.category
+      subcategory  = $_.subcategory
+      difficulty   = $_.difficulty
+      input_variant = $_.input_variant
+    }
+  } |
+  Export-Csv `
+    .\evaluation\shared\standard\manifest.csv `
+    -NoTypeInformation `
+    -Encoding utf8
+```
+
+---
+
+# 32. Model B以降の訳文ファイル作成
+
+Model Bについても同じ並び順で訳文ファイルを作る。
+
+```powershell
+$raw = Import-Csv `
+  .\results\model-b\standard\run_001_raw_results.csv
+
+$rows = $raw |
+  Where-Object {
+    $_.run_id -eq "1" -and
+    $_.input_variant -eq "standard"
+  } |
+  Sort-Object id
+```
+
+件数と失敗数を確認した後、訳文ファイルを作る。
+
+```powershell
+$rows |
+  ForEach-Object {
+    ($_.translation_ja -replace "(`r`n|`n|`r)", " ").Trim()
+  } |
+  Set-Content `
+    .\evaluation\hypotheses\model-b\standard.txt `
+    -Encoding utf8
+```
+
+Model B用に`source.txt`と`reference.txt`を作り直す必要はない。
+
+ただし、Model AとModel BでID、原文、基準訳が完全に同じであることを確認する。
+
+---
+
+# 33. 評価用ファイルの行数確認
+
+```powershell
+(Get-Content .\evaluation\shared\standard\source.txt).Count
+(Get-Content .\evaluation\shared\standard\reference.txt).Count
+(Get-Content .\evaluation\hypotheses\model-a\standard.txt).Count
+(Get-Content .\evaluation\hypotheses\model-b\standard.txt).Count
+```
+
+期待値：
+
+```text
+400
+400
+400
+400
+```
+
+空行の確認：
+
+```powershell
+(
+  Get-Content .\evaluation\hypotheses\model-a\standard.txt |
+  Where-Object {
+    [string]::IsNullOrWhiteSpace($_)
+  }
+).Count
+```
+
+期待値：
+
+```text
+0
+```
+
+---
+
+# 34. OCR評価用ファイルの作成
+
+同じ方法で、次のファイルを作成する。
+
+```text
+evaluation/shared/ocr_clean/source.txt
+evaluation/shared/ocr_clean/reference.txt
+evaluation/shared/ocr_clean/manifest.csv
+evaluation/hypotheses/model-a/ocr_clean.txt
+
+evaluation/shared/ocr_noise/source.txt
+evaluation/shared/ocr_noise/reference.txt
+evaluation/shared/ocr_noise/manifest.csv
+evaluation/hypotheses/model-a/ocr_noise.txt
+```
+
+OCR正常文の入力CSV：
+
+```text
+results/model-a/ocr_clean/run_001_raw_results.csv
+```
+
+OCRノイズ文の入力CSV：
+
+```text
+results/model-a/ocr_noise/run_001_raw_results.csv
+```
+
+それぞれの期待行数：
+
+```text
+40
+```
+
+OCRノイズに含まれるセル内改行は、評価用テキストへ出力する際に半角スペースへ置換する。
+
+モデルはすでに改行を含むOCR入力で翻訳を実行しているため、翻訳モデルのOCR耐性評価自体は維持される。
+
+---
+
+# 35. chrF++環境の準備
+
+既存の仮想環境を有効化する。
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+インストール：
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install sacrebleu
+```
+
+バージョン確認：
+
+```powershell
+sacrebleu --version
+```
+
+使用したバージョンを試験記録へ保存する。
+
+---
+
+# 36. chrF++の標準設定
+
+本試験では以下を固定する。
+
+```text
+文字n-gram次数：6
+単語n-gram次数：2
+Beta：2
+大文字・小文字：区別する
+空白文字：n-gramに含めない
+```
+
+コマンドオプション：
+
+```text
+--chrf-char-order 6
+--chrf-word-order 2
+--chrf-beta 2
+```
+
+`--chrf-word-order 2`を指定したものをchrF++として扱う。
+
+すべてのモデルで同じオプションを使用する。
+
+---
+
+# 37. Model AのchrF++評価
+
+```powershell
+sacrebleu `
+  .\evaluation\shared\standard\reference.txt `
+  -i .\evaluation\hypotheses\model-a\standard.txt `
+  -m chrf `
+  --chrf-char-order 6 `
+  --chrf-word-order 2 `
+  --chrf-beta 2 `
+  -f json |
+Set-Content `
+  .\evaluation\chrf\model-a_standard.json `
+  -Encoding utf8
+```
+
+結果確認：
+
+```powershell
+Get-Content `
+  .\evaluation\chrf\model-a_standard.json
+```
+
+確認する項目：
+
+```text
+score
+signature
+nrefs
+case
+nc
+nw
+space
+version
+```
+
+特に以下を確認する。
+
+```text
+nw:2
+nc:6
+```
+
+---
+
+# 38. Model BのchrF++評価
+
+```powershell
+sacrebleu `
+  .\evaluation\shared\standard\reference.txt `
+  -i .\evaluation\hypotheses\model-b\standard.txt `
+  -m chrf `
+  --chrf-char-order 6 `
+  --chrf-word-order 2 `
+  --chrf-beta 2 `
+  -f json |
+Set-Content `
+  .\evaluation\chrf\model-b_standard.json `
+  -Encoding utf8
+```
+
+同じ手順をすべてのモデルについて実施する。
+
+---
+
+# 39. chrF++信頼区間
+
+単一モデルの95%信頼区間も保存する場合：
+
+```powershell
+$env:SACREBLEU_SEED = "12345"
+
+sacrebleu `
+  .\evaluation\shared\standard\reference.txt `
+  -i .\evaluation\hypotheses\model-a\standard.txt `
+  -m chrf `
+  --chrf-char-order 6 `
+  --chrf-word-order 2 `
+  --chrf-beta 2 `
+  --confidence `
+  --confidence-n 1000 `
+  -f text |
+Set-Content `
+  .\evaluation\chrf\model-a_standard_confidence.txt `
+  -Encoding utf8
+```
+
+すべてのモデルで同じシードとリサンプリング回数を使用する。
+
+---
+
+# 40. chrF++のモデル間有意差検定
+
+最初に指定した訳文ファイルが基準モデルになる。
+
+Model Aを基準としてModel Bを比較する例：
+
+```powershell
+$env:SACREBLEU_SEED = "12345"
+
+sacrebleu `
+  .\evaluation\shared\standard\reference.txt `
+  -i `
+    .\evaluation\hypotheses\model-a\standard.txt `
+    .\evaluation\hypotheses\model-b\standard.txt `
+  -m chrf `
+  --chrf-char-order 6 `
+  --chrf-word-order 2 `
+  --chrf-beta 2 `
+  --paired-bs `
+  --paired-bs-n 1000 `
+  -f text |
+Set-Content `
+  .\evaluation\chrf\model-a_vs_model-b_standard.txt `
+  -Encoding utf8
+```
+
+結果には以下が含まれる。
+
+```text
+各モデルのchrF++スコア
+95%信頼区間
+基準モデルとの差
+p値
+```
+
+一般的には、`p < 0.05`で差が統計的に有意と判断する。
+
+ただし、有意差があっても実用上の差が大きいとは限らないため、スコア差そのものも確認する。
+
+---
+
+# 41. OCRのchrF++評価
+
+## OCR正常文
+
+```powershell
+sacrebleu `
+  .\evaluation\shared\ocr_clean\reference.txt `
+  -i .\evaluation\hypotheses\model-a\ocr_clean.txt `
+  -m chrf `
+  --chrf-char-order 6 `
+  --chrf-word-order 2 `
+  --chrf-beta 2 `
+  -f json |
+Set-Content `
+  .\evaluation\chrf\model-a_ocr_clean.json `
+  -Encoding utf8
+```
+
+## OCRノイズ文
+
+```powershell
+sacrebleu `
+  .\evaluation\shared\ocr_noise\reference.txt `
+  -i .\evaluation\hypotheses\model-a\ocr_noise.txt `
+  -m chrf `
+  --chrf-char-order 6 `
+  --chrf-word-order 2 `
+  --chrf-beta 2 `
+  -f json |
+Set-Content `
+  .\evaluation\chrf\model-a_ocr_noise.json `
+  -Encoding utf8
+```
+
+計算する値：
+
+```text
+OCR chrF++低下量
+= ocr_cleanのchrF++ - ocr_noiseのchrF++
+```
+
+低下量が小さいモデルほど、OCRノイズに強いと判断する。
+
+---
+
+# 42. カテゴリ別chrF++評価
+
+カテゴリ別評価では、該当カテゴリだけを抽出した次のファイルを作成する。
+
+```text
+reference.txt
+hypothesis.txt
+```
+
+対象カテゴリ：
+
+```text
+UI・操作説明
+会話
+スキル・アイテム
+クエスト
+固有名詞
+OCRノイズ
+```
+
+例えば「UI・操作説明」だけを抽出する場合：
+
+```powershell
+$category = "UI・操作説明"
+
+$rows = Import-Csv `
+  .\results\model-a\standard\run_001_raw_results.csv |
+  Where-Object {
+    $_.input_variant -eq "standard" -and
+    $_.category -eq $category
+  } |
+  Sort-Object id
+```
+
+出力先を作る。
+
+```powershell
+New-Item -ItemType Directory -Force `
+  -Path .\evaluation\chrf\categories\UI | Out-Null
+```
+
+基準訳：
+
+```powershell
+$rows |
+  ForEach-Object {
+    ($_.reference_ja -replace "(`r`n|`n|`r)", " ").Trim()
+  } |
+  Set-Content `
+    .\evaluation\chrf\categories\UI\reference.txt `
+    -Encoding utf8
+```
+
+Model Aの訳文：
+
+```powershell
+$rows |
+  ForEach-Object {
+    ($_.translation_ja -replace "(`r`n|`n|`r)", " ").Trim()
+  } |
+  Set-Content `
+    .\evaluation\chrf\categories\UI\model-a.txt `
+    -Encoding utf8
+```
+
+評価：
+
+```powershell
+sacrebleu `
+  .\evaluation\chrf\categories\UI\reference.txt `
+  -i .\evaluation\chrf\categories\UI\model-a.txt `
+  -m chrf `
+  --chrf-char-order 6 `
+  --chrf-word-order 2 `
+  --chrf-beta 2 `
+  -f json |
+Set-Content `
+  .\evaluation\chrf\categories\UI\model-a_result.json `
+  -Encoding utf8
+```
+
+同じ操作を各カテゴリと各モデルで繰り返す。
+
+---
+
+# 43. chrF++集計ファイルの作成
+
+各JSON結果の`score`と`signature`を読み取り、表計算ソフトで以下のCSVを作成する。
+
+```text
+evaluation/chrf/chrf_summary.csv
+```
+
+推奨列：
+
+```csv
+model_name,run_id,input_variant,scope,category,item_count,chrf_corpus,signature,result_file
+```
+
+例：
+
+```csv
+model_name,run_id,input_variant,scope,category,item_count,chrf_corpus,signature,result_file
+model-a,1,standard,all,,400,58.42,"nrefs:1|case:mixed|eff:yes|nc:6|nw:2|space:no|version:...","model-a_standard.json"
+model-b,1,standard,all,,400,60.18,"nrefs:1|case:mixed|eff:yes|nc:6|nw:2|space:no|version:...","model-b_standard.json"
+model-a,1,ocr_clean,all,OCRノイズ,40,61.30,"...","model-a_ocr_clean.json"
+model-a,1,ocr_noise,all,OCRノイズ,40,54.20,"...","model-a_ocr_noise.json"
+```
+
+正式なchrF++比較では`chrf_corpus`を使用する。
+
+文単位chrFの平均値を、コーパスchrF++の代わりに使用しない。
+
+---
+
+# 44. COMET専用環境の準備
+
+COMETはPyTorchなど大きな依存関係を使用するため、専用の仮想環境を推奨する。
+
+```powershell
+python -m venv .venv-comet
+.\.venv-comet\Scripts\Activate.ps1
+```
+
+インストール：
+
+```powershell
+python -m pip install --upgrade pip
+python -m pip install unbabel-comet
+```
+
+確認：
+
+```powershell
+comet-score --help
+comet-compare --help
+```
+
+バージョン情報：
+
+```powershell
+python -m pip show unbabel-comet
+```
+
+使用したCOMETバージョンを試験記録へ保存する。
+
+---
+
+# 45. COMET評価モデル
+
+本試験では、参照訳ありモデルを固定して使用する。
+
+```text
+Unbabel/wmt22-comet-da
+```
+
+COMETモデルを途中で変更した結果は、同じ表で直接比較しない。
+
+初回実行時はモデルデータのダウンロードが行われるため、インターネット接続が必要になる。
+
+---
+
+# 46. COMET実行前のGPU準備
+
+COMETをGPUで実行する場合、llama-serverを終了する。
+
+```text
+Ctrl+C
+```
+
+理由：
+
+```text
+翻訳モデルがGPUメモリを使用したままだと、
+COMETモデルをロードできない可能性があるため
+```
+
+GPU使用状況を確認する。
+
+```powershell
+nvidia-smi
+```
+
+---
+
+# 47. Model AのCOMET評価
+
+GPUを1基使用する場合：
+
+```powershell
+comet-score `
+  -s .\evaluation\shared\standard\source.txt `
+  -t .\evaluation\hypotheses\model-a\standard.txt `
+  -r .\evaluation\shared\standard\reference.txt `
+  --model Unbabel/wmt22-comet-da `
+  --gpus 1 `
+  --to_json .\evaluation\comet\model-a_standard.json
+```
+
+CPUで実行する場合：
+
+```powershell
+comet-score `
+  -s .\evaluation\shared\standard\source.txt `
+  -t .\evaluation\hypotheses\model-a\standard.txt `
+  -r .\evaluation\shared\standard\reference.txt `
+  --model Unbabel/wmt22-comet-da `
+  --gpus 0 `
+  --to_json .\evaluation\comet\model-a_standard.json
+```
+
+CPU評価とGPU評価で速度は異なるが、同じモデルと同じCOMETバージョンであれば品質スコア比較に使用できる。
+
+ただし、評価環境は試験記録へ残す。
+
+---
+
+# 48. COMETのシステムスコアだけを保存する場合
+
+```powershell
+comet-score `
+  -s .\evaluation\shared\standard\source.txt `
+  -t .\evaluation\hypotheses\model-a\standard.txt `
+  -r .\evaluation\shared\standard\reference.txt `
+  --model Unbabel/wmt22-comet-da `
+  --gpus 1 `
+  --quiet `
+  --only_system |
+Set-Content `
+  .\evaluation\comet\model-a_standard_system_score.txt `
+  -Encoding utf8
+```
+
+詳細分析ではJSON結果を保存し、システムスコアだけの実行は確認用として扱う。
+
+---
+
+# 49. Model B以降のCOMET評価
+
+```powershell
+comet-score `
+  -s .\evaluation\shared\standard\source.txt `
+  -t .\evaluation\hypotheses\model-b\standard.txt `
+  -r .\evaluation\shared\standard\reference.txt `
+  --model Unbabel/wmt22-comet-da `
+  --gpus 1 `
+  --to_json .\evaluation\comet\model-b_standard.json
+```
+
+同じCOMETモデル、同じGPU設定、同じ入力ファイルを使用する。
+
+---
+
+# 50. COMETのモデル間比較
+
+複数モデルの統計的な差を確認する。
+
+```powershell
+comet-compare `
+  -s .\evaluation\shared\standard\source.txt `
+  -t `
+    .\evaluation\hypotheses\model-a\standard.txt `
+    .\evaluation\hypotheses\model-b\standard.txt `
+  -r .\evaluation\shared\standard\reference.txt |
+Set-Content `
+  .\evaluation\comet\model-a_vs_model-b_standard.txt `
+  -Encoding utf8
+```
+
+3モデル以上の場合：
+
+```powershell
+comet-compare `
+  -s .\evaluation\shared\standard\source.txt `
+  -t `
+    .\evaluation\hypotheses\model-a\standard.txt `
+    .\evaluation\hypotheses\model-b\standard.txt `
+    .\evaluation\hypotheses\model-c\standard.txt `
+  -r .\evaluation\shared\standard\reference.txt |
+Set-Content `
+  .\evaluation\comet\all_models_standard.txt `
+  -Encoding utf8
+```
+
+`comet-compare --help`で`--model`オプションが利用可能な場合は、採点時と同じモデルを明示する。
+
+```text
+Unbabel/wmt22-comet-da
+```
+
+---
+
+# 51. OCRのCOMET評価
+
+## OCR正常文
+
+```powershell
+comet-score `
+  -s .\evaluation\shared\ocr_clean\source.txt `
+  -t .\evaluation\hypotheses\model-a\ocr_clean.txt `
+  -r .\evaluation\shared\ocr_clean\reference.txt `
+  --model Unbabel/wmt22-comet-da `
+  --gpus 1 `
+  --to_json .\evaluation\comet\model-a_ocr_clean.json
+```
+
+## OCRノイズ文
+
+```powershell
+comet-score `
+  -s .\evaluation\shared\ocr_noise\source.txt `
+  -t .\evaluation\hypotheses\model-a\ocr_noise.txt `
+  -r .\evaluation\shared\ocr_noise\reference.txt `
+  --model Unbabel/wmt22-comet-da `
+  --gpus 1 `
+  --to_json .\evaluation\comet\model-a_ocr_noise.json
+```
+
+計算する値：
+
+```text
+OCR COMET低下量
+= ocr_cleanのCOMET - ocr_noiseのCOMET
+```
+
+低下量が小さいモデルほど、OCR誤認識の影響を受けにくいと判断する。
+
+---
+
+# 52. COMET文単位スコアCSVの作成
+
+`aggregate_results.py`がCSVを要求する場合は、COMETのJSON結果と`manifest.csv`を組み合わせて以下を作成する。
+
+```text
+evaluation/comet/comet_scores.csv
+```
+
+推奨列：
+
+```csv
+model_name,run_id,id,input_variant,comet_score
+```
 
 例：
 
 ```csv
 model_name,run_id,id,input_variant,comet_score
-model-a,1,UI001,standard,0.91
+model-a,1,DLG001,standard,0.9123
+model-a,1,DLG002,standard,0.8841
+model-a,1,DLG003,standard,0.9352
 ```
 
-```csv
-model_name,run_id,id,input_variant,sentence_chrf
-model-a,1,UI001,standard,72.4
-```
+作成方法：
 
-正式なchrF++比較では、文単位平均とコーパススコアを混同しない。
+1. `manifest.csv`をExcelで開く
+2. `comet_score`列を追加する
+3. COMET JSON内の文単位スコアを行順に貼り付ける
+4. `line_no`とスコアの件数が一致していることを確認する
+5. 不要な列を削除する
+6. UTF-8 CSVとして保存する
+
+標準試験では400件、OCR試験では40件になっていることを確認する。
+
+COMET JSONの具体的なフィールド構成はバージョンによって変わる可能性があるため、JSON内の文単位スコア配列を確認してから取り込む。
 
 ---
 
-# 25. 人手評価
+# 53. COMETシステムスコア集計ファイル
+
+以下のCSVも作成する。
+
+```text
+evaluation/comet/comet_summary.csv
+```
+
+推奨列：
+
+```csv
+model_name,run_id,input_variant,scope,category,item_count,comet_system_score,comet_model,result_file
+```
+
+例：
+
+```csv
+model_name,run_id,input_variant,scope,category,item_count,comet_system_score,comet_model,result_file
+model-a,1,standard,all,,400,0.8421,Unbabel/wmt22-comet-da,model-a_standard.json
+model-b,1,standard,all,,400,0.8563,Unbabel/wmt22-comet-da,model-b_standard.json
+model-a,1,ocr_clean,all,OCRノイズ,40,0.8310,Unbabel/wmt22-comet-da,model-a_ocr_clean.json
+model-a,1,ocr_noise,all,OCRノイズ,40,0.7614,Unbabel/wmt22-comet-da,model-a_ocr_noise.json
+```
+
+---
+
+# 54. aggregate_results.pyへの配置
+
+`aggregate_results.py`が各モデルの結果ディレクトリを検索する実装の場合、作成したスコアCSVを所定の場所へコピーする。
+
+例：
+
+```text
+results/
+└─ model-a/
+   ├─ standard/
+   │  ├─ run_001_raw_results.csv
+   │  ├─ run_001_rule_evaluation.csv
+   │  ├─ run_001_comet_scores.csv
+   │  └─ run_001_chrf_summary.csv
+   ├─ ocr_clean/
+   │  ├─ run_001_raw_results.csv
+   │  ├─ run_001_comet_scores.csv
+   │  └─ run_001_chrf_summary.csv
+   └─ ocr_noise/
+      ├─ run_001_raw_results.csv
+      ├─ run_001_comet_scores.csv
+      └─ run_001_chrf_summary.csv
+```
+
+実際のファイル名と列構成は、実装済みの`aggregate_results.py --help`またはREADMEに合わせる。
+
+確認：
+
+```powershell
+python scripts\aggregate_results.py --help
+```
+
+配置後、再集計する。
+
+```powershell
+python scripts\aggregate_results.py `
+  --results-dir .\results `
+  --output-dir .\reports `
+  --config .\config\aggregation.yaml `
+  --accuracy-run 1 `
+  --overwrite
+```
+
+---
+
+# 55. 結果の確認
+
+## chrF++
+
+主に以下を確認する。
+
+```text
+全400件のコーパスchrF++
+カテゴリ別コーパスchrF++
+95%信頼区間
+モデル間のp値
+OCRによるスコア低下量
+メトリック署名
+```
+
+高いほど、基準訳との文字・単語表現が近い。
+
+---
+
+## COMET
+
+主に以下を確認する。
+
+```text
+システムスコア
+文単位スコア
+カテゴリ別平均
+低スコア項目
+モデル間の有意差
+OCRによるスコア低下量
+```
+
+COMETの絶対値だけで固定的な合格・不合格を決めず、同じ評価モデル、同じデータセット上でモデルを相対比較する。
+
+---
+
+# 56. 最終比較表
+
+```csv
+model_name,chrf_corpus,comet_system_score,ocr_chrf_drop,ocr_comet_drop,protected_token_pass_rate,critical_error_rate
+model-a,58.42,0.8421,5.30,0.0696,0.995,
+model-b,60.18,0.8563,12.80,0.1482,0.968,
+```
+
+判断例：
+
+```text
+Model B：
+通常英文ではchrF++とCOMETが高い
+ただしOCRノイズによる低下が大きい
+
+Model A：
+通常英文のスコアはModel Bより少し低い
+OCR耐性と保護トークン維持率が高い
+```
+
+ゲーム画面のOCR翻訳用途では、通常英文のスコアだけでなく、OCR低下量、数字保持率、Criticalエラー率も合わせて判断する。
+
+---
+
+# 57. 実施完了チェックリスト
+
+```text
+□ 精度評価にはRun 1を使用した
+□ 標準試験の全400件が成功している
+□ OCR試験の各40件が成功している
+□ source、reference、hypothesisの行数が一致している
+□ 全ファイルをid順に並べた
+□ セル内改行を半角スペースへ置換した
+□ UTF-8で保存した
+□ SacreBLEUのバージョンを記録した
+□ chrF++に--chrf-word-order 2を指定した
+□ chrF++のsignatureを保存した
+□ chrF++の信頼区間を確認した
+□ COMETのバージョンを記録した
+□ COMETモデルを固定した
+□ COMET実行前にllama-serverを停止した
+□ COMETのJSON結果を保存した
+□ manifestと文単位COMETスコアを対応させた
+□ OCR clean/noiseの低下量を算出した
+□ aggregate_results.pyを再実行した
+□ chrF++とCOMETだけで最終判断していない
+```
+
+
+# 58. 人手評価
 
 自動評価完了後、最低限以下を人手確認する。
 
@@ -1039,7 +2239,7 @@ human_comment
 
 ---
 
-# 26. 最終的な選定基準
+# 59. 最終的な選定基準
 
 最初に以下で足切りする。
 
@@ -1077,7 +2277,7 @@ VRAM上限内で安定動作するモデル
 
 ---
 
-# 27. 再試験が必要な条件
+# 60. 再試験が必要な条件
 
 以下に該当した場合は、そのRunを無効として再試験する。
 
@@ -1096,7 +2296,7 @@ API失敗が特定Runだけ異常に多い
 
 ---
 
-# 28. 実施完了チェックリスト
+# 61. 実施完了チェックリスト
 
 ```text
 □ Python仮想環境を使用した
