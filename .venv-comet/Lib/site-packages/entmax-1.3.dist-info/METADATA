@@ -1,0 +1,12 @@
+Metadata-Version: 2.1
+Name: entmax
+Version: 1.3
+Summary: The entmax mapping and its loss, a family of sparse alternatives to softmax.
+Home-page: https://github.com/deep-spin/entmax
+Author: Ben Peters, Goncalo M Correia, Vlad Niculae
+Author-email: vlad@vene.ro
+License: MIT
+Requires-Python: >=3.5
+License-File: LICENSE
+Requires-Dist: torch (>=1.3)
+

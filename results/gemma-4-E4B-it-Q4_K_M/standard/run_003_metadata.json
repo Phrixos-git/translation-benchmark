@@ -1,0 +1,93 @@
+{
+  "model_name": "gemma-4-E4B-it-Q4_K_M",
+  "model_file": "gemma-4-E4B-it-Q4_K_M.gguf",
+  "quantization": "Q4_K_M",
+  "run_id": 3,
+  "input_variant": "standard",
+  "api_url": "http://127.0.0.1:8080/v1/chat/completions",
+  "api_model": "local-model",
+  "llama_cpp_version": "",
+  "started_at": "2026-06-18T22:44:43+09:00",
+  "completed_at": "2026-06-18T22:46:46+09:00",
+  "input_file": "G:\\AI_Models\\benchmark\\translation-benchmark\\data\\local_llm_translation_benchmark_ja.csv",
+  "input_file_sha256": "19518da971fd7d9b3ac20155ba694c4acee750af53e1fc11751da8ed7ef1ce7a",
+  "system_prompt_sha256": "5fe7d889c852455d9985ec8b61d8d67cebb18f76ebaa1626445a57f2f7e8d5e6",
+  "temperature": 0.0,
+  "top_p": 1.0,
+  "top_k": null,
+  "min_p": null,
+  "max_tokens": 256,
+  "seed": 42,
+  "warmup_count": 5,
+  "total_items": 400,
+  "success_count": 400,
+  "failure_count": 0,
+  "stream": false,
+  "concurrency": 1,
+  "connect_timeout": 10.0,
+  "read_timeout": 60.0,
+  "os": "Windows-11-10.0.26200-SP0",
+  "python_version": "3.12.10",
+  "cpu": "AMD64 Family 26 Model 68 Stepping 0, AuthenticAMD",
+  "preflight": {
+    "health": {
+      "status": "ok"
+    },
+    "models": {
+      "models": [
+        {
+          "name": "gemma-4-E4B-it-Q4_K_M.gguf",
+          "model": "gemma-4-E4B-it-Q4_K_M.gguf",
+          "modified_at": "",
+          "size": "",
+          "digest": "",
+          "type": "model",
+          "description": "",
+          "tags": [
+            ""
+          ],
+          "capabilities": [
+            "completion"
+          ],
+          "parameters": "",
+          "details": {
+            "parent_model": "",
+            "format": "gguf",
+            "family": "",
+            "families": [
+              ""
+            ],
+            "parameter_size": "",
+            "quantization_level": ""
+          }
+        }
+      ],
+      "object": "list",
+      "data": [
+        {
+          "id": "gemma-4-E4B-it-Q4_K_M.gguf",
+          "aliases": [],
+          "tags": [],
+          "object": "model",
+          "created": 1781790283,
+          "owned_by": "llamacpp",
+          "meta": {
+            "vocab_type": 2,
+            "n_vocab": 262144,
+            "n_ctx": 8192,
+            "n_ctx_train": 131072,
+            "n_embd": 2560,
+            "n_params": 7518069290,
+            "size": 4961343656
+          }
+        }
+      ]
+    },
+    "preflight": {
+      "status": 200,
+      "latency_ms": 240.59820000184118,
+      "finish_reason": "stop"
+    },
+    "warmup_success_count": 5
+  }
+}

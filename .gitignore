@@ -25,6 +25,9 @@ profile.cov
 # vendor/
 models/
 __pycache__/
+smoke-results/
+unrun-results/
+server/
 
 # env file
 .env
@@ -32,3 +35,5 @@ __pycache__/
 # Editor/IDE
 # .idea/
 # .vscode/
+.venv/
+.venv-coment/
