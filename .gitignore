@@ -36,4 +36,4 @@ server/
 # .idea/
 # .vscode/
 .venv/
-.venv-coment/
+.venv-comet/
